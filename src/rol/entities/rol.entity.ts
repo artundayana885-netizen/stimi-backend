@@ -1,15 +1,10 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('rol')
 export class Rol {
-
   @PrimaryGeneratedColumn()
-  credencial: number;
+  id_rol: number;
 
-  @Column({
-    type: 'enum',
-    enum: ['Activo', 'Inactivo'],
-  })
-  estado: string;
-
+  @Column('varchar', { length: 50, unique: true })
+  nombre_rol: string; // 'Instructor' | 'Coordinador'
 }

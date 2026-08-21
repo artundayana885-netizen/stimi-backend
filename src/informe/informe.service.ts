@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Informe } from './entities/informe.entity';
+import { Version } from '../version/entities/version.entity';
 import { CreateInformeDto } from './dto/create-informe.dto';
 import { UpdateInformeDto } from './dto/update-informe.dto';
 
@@ -11,12 +12,27 @@ export class InformeService {
   constructor(
     @InjectRepository(Informe)
     private readonly informeRepository: Repository<Informe>,
+    @InjectRepository(Version)
+    private readonly versionRepository: Repository<Version>,
   ) {}
 
   async create(createInformeDto: CreateInformeDto): Promise<Informe> {
+    const idVersion = createInformeDto.id_version || 1;
+
+    let version = await this.versionRepository.findOne({ where: { id_version: idVersion } });
+    if (!version) {
+      version = this.versionRepository.create({
+        id_version: idVersion,
+        fecha: new Date(),
+        estado: 'Aprobado'
+      });
+      version = await this.versionRepository.save(version);
+    }
+
+    const { id_version, ...rest } = createInformeDto;
     const informe = this.informeRepository.create({
-      ...createInformeDto,
-      version: { id_version: createInformeDto.id_version },
+      ...rest,
+      version: { id_version: version.id_version },
     });
     return await this.informeRepository.save(informe);
   }
@@ -33,9 +49,24 @@ export class InformeService {
 
   async update(id: number, updateInformeDto: UpdateInformeDto): Promise<Informe> {
     await this.findOne(id);
+
+    let versionId = updateInformeDto.id_version;
+    if (versionId) {
+      let version = await this.versionRepository.findOne({ where: { id_version: versionId } });
+      if (!version) {
+        version = this.versionRepository.create({
+          id_version: versionId,
+          fecha: new Date(),
+          estado: 'Aprobado'
+        });
+        await this.versionRepository.save(version);
+      }
+    }
+
+    const { id_version, ...rest } = updateInformeDto;
     await this.informeRepository.update(id, {
-      ...updateInformeDto,
-      ...(updateInformeDto.id_version && { version: { id_version: updateInformeDto.id_version } }),
+      ...rest,
+      ...(versionId && { version: { id_version: versionId } }),
     });
     return this.findOne(id);
   }

@@ -1,26 +1,21 @@
 import { Column, Entity, ManyToOne, JoinColumn, PrimaryGeneratedColumn } from 'typeorm';
 import { Persona } from '../../persona/entities/persona.entity';
 
-@Entity('contrato')
-export class Contrato {
-
+@Entity('notificacion')
+export class Notificacion {
   @PrimaryGeneratedColumn()
-  id_contrato: number;
+  id_notificacion: number;
 
-  @Column('date')
-  fecha_inicio: Date;
+  @Column({ default: () => 'CURRENT_TIMESTAMP' })
+  fecha: Date;
 
-  @Column('date')
-  fecha_fin: Date;
+  @Column('text')
+  informacion: string;
 
-  @Column({
-    type: 'simple-enum',
-    enum: ['Activo', 'Terminado'],
-  })
-  estado: string;
+  @Column('boolean', { default: false })
+  leida: boolean;
 
   @ManyToOne(() => Persona, { eager: true })
   @JoinColumn({ name: 'id_persona' })
   persona: Persona;
-
 }

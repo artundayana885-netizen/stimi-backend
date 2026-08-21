@@ -15,11 +15,9 @@ export class PersonaService {
 
   async create(createPersonaDto: CreatePersonaDto): Promise<Persona> {
     const persona = this.personaRepository.create({
-      ...createPersonaDto,
-      credencial: { credencial: createPersonaDto.credencial },
-      area: { id_area: createPersonaDto.id_area },
-    });
-    return await this.personaRepository.save(persona);
+  ...createPersonaDto,
+});
+return await this.personaRepository.save(persona);
   }
 
   async findAll(): Promise<Persona[]> {
@@ -32,12 +30,9 @@ export class PersonaService {
     return persona;
   }
 
-  async update(id: number, updatePersonaDto: UpdatePersonaDto): Promise<Persona> {
-    await this.findOne(id);
-    await this.personaRepository.update(id, {
-      ...updatePersonaDto,
-      ...(updatePersonaDto.credencial && { credencial: { credencial: updatePersonaDto.credencial } }),
-      ...(updatePersonaDto.id_area && { area: { id_area: updatePersonaDto.id_area } }),
+async update(id: number, updatePersonaDto: UpdatePersonaDto) {
+  await this.personaRepository.update(id, {
+    ...updatePersonaDto,
     });
     return this.findOne(id);
   }

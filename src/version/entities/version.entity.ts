@@ -18,7 +18,7 @@ export class Version {
   fecha: Date;
 
   @Column({
-    type: 'enum',
+    type: 'simple-enum',
     enum: ['Pendiente', 'Aprobado', 'Rechazado'],
   })
   estado: string;

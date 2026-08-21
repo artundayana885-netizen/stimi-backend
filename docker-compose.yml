@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    container_name: stimi-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: stimi_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - stimi_pgdata:/var/lib/postgresql/data
+
+volumes:
+  stimi_pgdata:

@@ -1,6 +1,7 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn, JoinColumn } from 'typeorm';
+import { InformeGc } from '../../informe_gc/entities/informe_gc.entity';
 
-@Entity()
+@Entity('actividad')
 export class Actividad {
   @PrimaryGeneratedColumn()
   id_actividad: number;
@@ -14,17 +15,16 @@ export class Actividad {
   @Column({ length: 250 })
   resultado: string;
 
-  @Column()
+  @Column('date')
   fecha_inicio: Date;
 
-  @Column()
+  @Column('date')
   fecha_fin: Date;
 
-  @Column()
+  @Column({ type: 'simple-enum', enum: ['Aplica', 'No_Aplica'], default: 'Aplica' })
   estado: string;
 
-  @Column({ nullable: true })
-  id_gc: number;
-
-  informe_gc: any;
+  @ManyToOne(() => InformeGc, { eager: true })
+  @JoinColumn({ name: 'id_gc' })
+  informe_gc: InformeGc;
 }
