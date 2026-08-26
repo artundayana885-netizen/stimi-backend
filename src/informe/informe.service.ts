@@ -16,7 +16,10 @@ export class InformeService {
     private readonly versionRepository: Repository<Version>,
   ) {}
 
-  async create(createInformeDto: CreateInformeDto): Promise<Informe> {
+  async create(
+    createInformeDto: CreateInformeDto,
+    archivo?: Express.Multer.File,
+  ): Promise<Informe> {
     const idVersion = createInformeDto.id_version || 1;
 
     let version = await this.versionRepository.findOne({ where: { id_version: idVersion } });
@@ -32,6 +35,11 @@ export class InformeService {
     const { id_version, ...rest } = createInformeDto;
     const informe = this.informeRepository.create({
       ...rest,
+      // Si llegó un archivo real, su nombre original manda sobre el
+      // `fileName` que haya mandado el frontend en el body.
+      fileName: archivo?.originalname || createInformeDto.fileName,
+      archivoPath: archivo?.path,
+      archivoMimeType: archivo?.mimetype,
       version: { id_version: version.id_version },
     });
     return await this.informeRepository.save(informe);

@@ -20,16 +20,13 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^11.0.1",
-    "axios": "^1.19.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "mysql2": "^3.22.4",
@@ -37,6 +34,7 @@
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "better-sqlite3": "^12.0.0",
     "typeorm": "^1.0.0"
   },
   "devDependencies": {
@@ -48,7 +46,6 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
-    "@types/multer": "^2.2.0",
     "@types/node": "^22.10.7",
     "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^6.0.2",

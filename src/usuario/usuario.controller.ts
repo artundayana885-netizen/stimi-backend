@@ -73,29 +73,32 @@ export class UsuarioController {
   @Put('status/:id')
   @HttpCode(HttpStatus.OK)
   async toggleUserStatus(@Param('id') id: string) {
-    const user = await this.usuarioService.toggleUserStatus(Number(id));
+    const { user, emailSent } = await this.usuarioService.toggleUserStatus(Number(id));
     return {
       message: `Estado del usuario cambiado a ${user.estado}`,
       active: user.estado === 'Activo',
+      emailSent,
     };
   }
 
   @Put('role/:id')
   @HttpCode(HttpStatus.OK)
   async changeUserRole(@Param('id') id: string, @Body('role') role: string) {
-    const user = await this.usuarioService.changeUserRole(Number(id), role);
+    const { user, emailSent } = await this.usuarioService.changeUserRole(Number(id), role);
     return {
       message: `Rol del usuario cambiado a ${user.rol?.nombre_rol}`,
       role: user.rol?.nombre_rol?.toLowerCase(),
+      emailSent,
     };
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async deleteUser(@Param('id') id: string) {
-    await this.usuarioService.deleteUser(Number(id));
+    const { emailSent } = await this.usuarioService.deleteUser(Number(id));
     return {
       message: 'Usuario eliminado exitosamente',
+      emailSent,
     };
   }
 

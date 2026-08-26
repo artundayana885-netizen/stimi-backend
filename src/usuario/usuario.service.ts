@@ -24,6 +24,37 @@ export class UsuarioService {
     private readonly rolRepository: Repository<Rol>,
   ) {}
 
+  private getMailTransporter() {
+    const mailHost = process.env.MAIL_HOST || 'smtp.gmail.com';
+    const isGmail = mailHost.includes('gmail.com');
+
+    const transporterConfig: any = isGmail
+      ? {
+          service: 'gmail',
+          auth: {
+            user: process.env.MAIL_USER || '',
+            pass: process.env.MAIL_PASS || '',
+          },
+          tls: {
+            rejectUnauthorized: false,
+          },
+        }
+      : {
+          host: mailHost,
+          port: Number(process.env.MAIL_PORT) || 587,
+          secure: process.env.MAIL_SECURE === 'true',
+          auth: {
+            user: process.env.MAIL_USER || '',
+            pass: process.env.MAIL_PASS || '',
+          },
+          tls: {
+            rejectUnauthorized: false,
+          },
+        };
+
+    return nodemailer.createTransport(transporterConfig);
+  }
+
   async register(payload: any): Promise<Usuario> {
     const { name, contractNumber, siif, arl, area, email, password } = payload;
 
@@ -38,8 +69,13 @@ export class UsuarioService {
       userArea = await this.areaRepository.save(userArea);
     }
 
-    const isCoordinador = email.toLowerCase().includes('coordinador');
-    const rolName = isCoordinador ? 'Coordinador' : 'Instructor';
+    // Todo registro público queda siempre como Instructor pendiente de
+    // aprobación. El rol de Coordinador solo puede asignarlo otro
+    // coordinador ya autenticado, vía changeUserRole(). Nunca se infiere
+    // del texto del correo electrónico: eso permitía que cualquiera se
+    // auto-asignara el rol de coordinador con solo poner "coordinador"
+    // en su correo al registrarse.
+    const rolName = 'Instructor';
 
     let userRol = await this.rolRepository.findOne({ where: { nombre_rol: rolName } });
     if (!userRol) {
@@ -60,7 +96,7 @@ export class UsuarioService {
     const usuario = this.usuarioRepository.create({
       username: email,
       password: hashedPassword,
-      estado: isCoordinador ? 'Activo' : 'Pendiente',
+      estado: 'Pendiente',
       persona: savedPersona,
       rol: userRol,
     });
@@ -113,34 +149,7 @@ export class UsuarioService {
     usuario.recovery_code = code;
     await this.usuarioRepository.save(usuario);
 
-    const mailHost = process.env.MAIL_HOST || 'smtp.gmail.com';
-    const isGmail = mailHost.includes('gmail.com');
-
-    const transporterConfig: any = isGmail
-      ? {
-          service: 'gmail',
-          auth: {
-            user: process.env.MAIL_USER || '',
-            pass: process.env.MAIL_PASS || '',
-          },
-          tls: {
-            rejectUnauthorized: false,
-          },
-        }
-      : {
-          host: mailHost,
-          port: Number(process.env.MAIL_PORT) || 587,
-          secure: process.env.MAIL_SECURE === 'true',
-          auth: {
-            user: process.env.MAIL_USER || '',
-            pass: process.env.MAIL_PASS || '',
-          },
-          tls: {
-            rejectUnauthorized: false,
-          },
-        };
-
-    const transporter = nodemailer.createTransport(transporterConfig);
+    const transporter = this.getMailTransporter();
 
     console.log(`[RECOVERY CODE] Enviando correo de recuperación a ${email}`);
 
@@ -227,29 +236,94 @@ export class UsuarioService {
     });
   }
 
-  async toggleUserStatus(id: number): Promise<Usuario> {
-    const user = await this.usuarioRepository.findOne({ where: { id_usuario: id } });
-    if (!user) throw new UnauthorizedException('Usuario no encontrado');
-    user.estado = user.estado === 'Activo' ? 'Inactivo' : 'Activo';
-    return await this.usuarioRepository.save(user);
-  }
-
-  async deleteUser(id: number): Promise<void> {
+  async toggleUserStatus(id: number): Promise<{ user: Usuario; emailSent: boolean }> {
     const user = await this.usuarioRepository.findOne({
       where: { id_usuario: id },
       relations: { persona: true },
     });
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
+
+    user.estado = user.estado === 'Activo' ? 'Inactivo' : 'Activo';
+    const savedUser = await this.usuarioRepository.save(user);
+
+    const toEmail = user.persona?.correo || savedUser.username;
+    const nombre = user.persona?.nombre;
+
+    let emailSent: boolean;
+    if (savedUser.estado === 'Activo') {
+      emailSent = await this.sendAccountNotification(
+        toEmail,
+        nombre,
+        'Tu cuenta fue reactivada - SITMI',
+        'Tu cuenta fue reactivada',
+        'el coordinador reactivó tu cuenta en el Portal SITMI. Ya puedes volver a iniciar sesión.',
+      );
+    } else {
+      emailSent = await this.sendAccountNotification(
+        toEmail,
+        nombre,
+        'Tu cuenta fue desactivada - SITMI',
+        'Tu cuenta fue desactivada',
+        'el coordinador desactivó tu cuenta en el Portal SITMI. Si crees que esto es un error, contacta al coordinador.',
+      );
+    }
+
+    return { user: savedUser, emailSent };
+  }
+
+  async deleteUser(id: number): Promise<{ emailSent: boolean }> {
+    const user = await this.usuarioRepository.findOne({
+      where: { id_usuario: id },
+      relations: { persona: true },
+    });
+    if (!user) throw new UnauthorizedException('Usuario no encontrado');
+
+    const toEmail = user.persona?.correo || user.username;
+    const nombre = user.persona?.nombre;
+    // Si estaba pendiente, esto es un rechazo de solicitud de registro,
+    // no la eliminación de una cuenta ya activa: el correo debe decir lo que corresponde.
+    const eraPendiente = user.estado === 'Pendiente';
+
     const personaId = user.persona?.id_persona;
     await this.usuarioRepository.remove(user);
     if (personaId) {
       await this.personaRepository.delete(personaId);
     }
+
+    let emailSent: boolean;
+    if (eraPendiente) {
+      emailSent = await this.sendAccountNotification(
+        toEmail,
+        nombre,
+        'Tu solicitud de registro fue rechazada - SITMI',
+        'Tu solicitud de registro fue rechazada',
+        'el coordinador revisó tu solicitud de registro en el Portal SITMI y decidió no aprobarla. Si crees que esto es un error, contacta al coordinador.',
+      );
+    } else {
+      emailSent = await this.sendAccountNotification(
+        toEmail,
+        nombre,
+        'Tu cuenta fue eliminada - SITMI',
+        'Tu cuenta fue eliminada',
+        'el coordinador eliminó tu cuenta del Portal SITMI.',
+      );
+    }
+
+    return { emailSent };
   }
 
-  async changeUserRole(id: number, roleName: string): Promise<Usuario> {
-    const user = await this.usuarioRepository.findOne({ where: { id_usuario: id } });
+  async changeUserRole(id: number, roleName: string): Promise<{ user: Usuario; emailSent: boolean }> {
+    const user = await this.usuarioRepository.findOne({
+      where: { id_usuario: id },
+      relations: { persona: true, rol: true },
+    });
     if (!user) throw new UnauthorizedException('Usuario no encontrado');
+
+    // Guardamos el estado y el rol ANTES de tocar nada, para saber si esta
+    // es la aprobación inicial de un registro (Pendiente -> Activo) o solo
+    // un cambio de rol posterior a una cuenta ya activa.
+    const eraPendiente = user.estado === 'Pendiente';
+    const rolAnterior = user.rol?.nombre_rol;
 
     let userRol = await this.rolRepository.findOne({ where: { nombre_rol: roleName } });
     if (!userRol) {
@@ -258,9 +332,90 @@ export class UsuarioService {
     }
 
     user.rol = userRol;
-    if (user.estado === 'Pendiente') {
+    if (eraPendiente) {
       user.estado = 'Activo';
     }
-    return await this.usuarioRepository.save(user);
+    const savedUser = await this.usuarioRepository.save(user);
+
+    const toEmail = user.persona?.correo || savedUser.username;
+    const nombre = user.persona?.nombre;
+    const displayRole = userRol.nombre_rol?.toLowerCase().startsWith('coord') ? 'Coordinador' : 'Instructor';
+
+    let emailSent = true; // si no hay cambio que notificar, no contamos eso como un fallo de envío
+    if (eraPendiente && savedUser.estado === 'Activo') {
+      // Primera aprobación de la solicitud de registro.
+      emailSent = await this.sendAccountNotification(
+        toEmail,
+        nombre,
+        'Tu cuenta fue aprobada - SITMI',
+        '¡Tu cuenta fue aprobada!',
+        `el coordinador aprobó tu solicitud de registro en el Portal SITMI con el rol de <strong>${displayRole}</strong>. Ya puedes iniciar sesión con tu correo y contraseña.`,
+      );
+    } else if (rolAnterior && rolAnterior !== userRol.nombre_rol) {
+      // Cuenta ya activa a la que le cambiaron el rol.
+      emailSent = await this.sendAccountNotification(
+        toEmail,
+        nombre,
+        'Tu rol fue actualizado - SITMI',
+        'Tu rol fue actualizado',
+        `el coordinador cambió tu rol en el Portal SITMI a <strong>${displayRole}</strong>.`,
+      );
+    }
+
+    return { user: savedUser, emailSent };
+  }
+
+  /**
+   * Notifica por correo al usuario cualquier acción del coordinador sobre su
+   * cuenta (aprobación, cambio de rol, activación/desactivación, rechazo o
+   * eliminación). No bloquea la acción si el envío falla: la acción ya se
+   * aplicó en la base de datos. Devuelve true/false para que quien la llame
+   * pueda avisar al coordinador en pantalla si el correo no salió — igual
+   * que ya se hace en forgotPassword().
+   */
+  private async sendAccountNotification(
+    toEmail: string,
+    userName: string | undefined,
+    subject: string,
+    heading: string,
+    message: string,
+  ): Promise<boolean> {
+    if (!toEmail) {
+      console.warn('[EMAIL] Se omitió el envío: el usuario no tiene un correo registrado.');
+      return false;
+    }
+
+    const transporter = this.getMailTransporter();
+    const mailSender = process.env.MAIL_USER || 'no-reply@sena.edu.co';
+
+    console.log(`[EMAIL] Enviando "${subject}" a ${toEmail}`);
+
+    try {
+      await transporter.sendMail({
+        from: `"SITMI Soporte" <${mailSender}>`,
+        to: toEmail,
+        subject,
+        text: `Hola ${userName || ''}, ${message.replace(/<[^>]+>/g, '')}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="display: inline-block; padding: 12px; background: linear-gradient(135deg, #16a34a, #15803d); color: #ffffff; border-radius: 8px; font-weight: bold; font-size: 20px;">SENA SITMI</div>
+            </div>
+            <h2 style="color: #1a202c; text-align: center;">${heading}</h2>
+            <p style="color: #4a5568; font-size: 16px; line-height: 1.5; text-align: center;">
+              Hola${userName ? ` ${userName}` : ''}, ${message}
+            </p>
+            <p style="color: #718096; font-size: 14px; text-align: center; margin-top: 24px;">
+              Si no reconoces esta acción, contacta a soporte.
+            </p>
+          </div>
+        `,
+      });
+      console.log(`[EMAIL] "${subject}" enviado exitosamente a ${toEmail}`);
+      return true;
+    } catch (mailError: any) {
+      console.error(`[EMAIL ERROR] Fallo al enviar "${subject}" a ${toEmail}:`, mailError.message);
+      return false;
+    }
   }
 }
