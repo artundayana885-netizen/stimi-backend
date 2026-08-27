@@ -15,6 +15,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:5173', // Puerto por defecto de Vite
       'http://localhost:3000', // Puerto alternativo o CRA
+      'https://stimii-frontend.7niwok.easypanel.host', // Frontend en producción (Easypanel)
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
