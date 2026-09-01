@@ -130,9 +130,62 @@ export class UsuarioService {
     }
 
     return {
+      id: usuario.id_usuario,
       name: usuario.persona?.nombre || 'Usuario',
       email: usuario.username,
       role: usuario.rol?.nombre_rol?.toLowerCase() || 'instructor',
+      telefono: usuario.persona?.telefono || '',
+      area: usuario.persona?.area?.nombre || '',
+      centro: usuario.persona?.area?.sede?.centro?.nombre_centro || '',
+    };
+  }
+
+  /**
+   * Actualiza el nombre, correo y/o teléfono del usuario (self-service,
+   * desde "Perfil de usuario" en Ajustes). Antes esto solo se guardaba en
+   * localStorage del navegador, así que se perdía al cambiar de
+   * dispositivo o borrar caché, y nunca quedaba realmente en la base de
+   * datos. El rol y el área/centro de formación NO se pueden cambiar aquí
+   * a propósito: esos los asigna el coordinador desde Gestión de Usuarios.
+   */
+  async updateProfile(id: number, payload: { nombre?: string; correo?: string; telefono?: string }) {
+    const usuario = await this.usuarioRepository.findOne({
+      where: { id_usuario: id },
+      relations: { persona: true, rol: true },
+    });
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    const nuevoCorreo = payload.correo?.trim();
+    if (nuevoCorreo && nuevoCorreo !== usuario.persona.correo) {
+      const yaExiste = await this.personaRepository.findOne({ where: { correo: nuevoCorreo } });
+      if (yaExiste && yaExiste.id_persona !== usuario.persona.id_persona) {
+        throw new ConflictException('Ese correo ya está en uso por otra cuenta');
+      }
+      usuario.persona.correo = nuevoCorreo;
+      // El login busca por `username`, que se mantiene igual al correo.
+      usuario.username = nuevoCorreo;
+    }
+
+    if (payload.nombre?.trim()) {
+      usuario.persona.nombre = payload.nombre.trim();
+    }
+    if (payload.telefono?.trim()) {
+      usuario.persona.telefono = payload.telefono.trim();
+    }
+
+    await this.personaRepository.save(usuario.persona);
+    await this.usuarioRepository.save(usuario);
+
+    return {
+      id: usuario.id_usuario,
+      name: usuario.persona.nombre,
+      email: usuario.username,
+      role: usuario.rol?.nombre_rol?.toLowerCase() || 'instructor',
+      telefono: usuario.persona.telefono || '',
+      area: usuario.persona.area?.nombre || '',
+      centro: usuario.persona.area?.sede?.centro?.nombre_centro || '',
     };
   }
 

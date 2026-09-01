@@ -102,6 +102,16 @@ export class UsuarioController {
     };
   }
 
+  @Put(':id/profile')
+  @HttpCode(HttpStatus.OK)
+  async updateProfile(@Param('id') id: string, @Body() payload: { nombre?: string; correo?: string; telefono?: string }) {
+    const user = await this.usuarioService.updateProfile(Number(id), payload);
+    return {
+      message: 'Perfil actualizado exitosamente',
+      user,
+    };
+  }
+
   @Post('chat')
   @HttpCode(HttpStatus.OK)
   async chat(@Body('message') message: string) {
