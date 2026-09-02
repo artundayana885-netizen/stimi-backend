@@ -16,10 +16,21 @@ async function bootstrap() {
   // porque faltaba registrar el ValidationPipe global. A partir de ahora,
   // cualquier request que no cumpla esas reglas se rechaza con un 400
   // claro, en vez de llegar tal cual a la base de datos.
+  //
+  // OJO: `transformOptions.enableImplicitConversion` se probó y se quitó
+  // a propósito. Convertía automáticamente TODOS los campos según su tipo
+  // declarado, pero para campos de arreglo libre sin forma fija (como
+  // `marcas`, las anotaciones que el coordinador dibuja sobre un informe)
+  // esa conversión los corrompía silenciosamente: en vez de guardar el
+  // arreglo real, guardaba un arreglo vacío, y eso hacía fallar con error
+  // 500 la función "Solicitar Corrección". Los pocos campos que sí
+  // necesitan conversión de texto a número (como `id_version`, que llega
+  // como string en las subidas con archivo adjunto) ahora se declaran
+  // explícitamente con `@Type(() => Number)` en su propio DTO — así solo
+  // se convierte ese campo puntual, sin arriesgar los demás.
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
-      transformOptions: { enableImplicitConversion: true },
       whitelist: true,
     }),
   );
