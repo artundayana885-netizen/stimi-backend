@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MaxLength, IsInt, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsInt, IsOptional, IsArray } from 'class-validator';
 
 export class CreateInformeDto {
 
@@ -34,4 +34,10 @@ export class CreateInformeDto {
   @IsString()
   @IsOptional()
   tipo_notificacion?: string;
+
+  // Marcas (resaltados/tachones/comentarios) hechas sobre el documento al
+  // revisar. Array de objetos libres (page, type, x, y, w, h, note, id).
+  @IsArray()
+  @IsOptional()
+  marcas?: any[];
 }

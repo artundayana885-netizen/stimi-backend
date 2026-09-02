@@ -54,4 +54,12 @@ export class Informe {
   // con el Content-Type correcto al descargarlo.
   @Column('varchar', { length: 150, nullable: true })
   archivoMimeType: string;
+
+  // Marcas (resaltados / tachones / comentarios) que el coordinador dejó
+  // sobre el documento al pedir una corrección. Se guardan como JSON para
+  // que el instructor las vea superpuestas en el mismo lugar exacto donde
+  // el coordinador las dejó. 'simple-json' serializa/parsea automáticamente
+  // (funciona igual en sqlite y en postgres, sin tocar el tipo de columna).
+  @Column('simple-json', { nullable: true })
+  marcas: any[];
 }
