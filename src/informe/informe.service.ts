@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Informe } from './entities/informe.entity';
@@ -72,10 +76,27 @@ export class InformeService {
     }
 
     const { id_version, ...rest } = updateInformeDto;
-    await this.informeRepository.update(id, {
-      ...rest,
-      ...(versionId && { version: { id_version: versionId } }),
-    });
+
+    try {
+      await this.informeRepository.update(id, {
+        ...rest,
+        ...(versionId && { version: { id_version: versionId } }),
+      });
+    } catch (error: any) {
+      // Antes este error se perdía y NestJS respondía un genérico
+      // "Internal server error" sin ninguna pista de la causa real
+      // (ej. columna "marcas" inexistente en la base de datos porque el
+      // backend desplegado no se reinició/sincronizó después de agregar
+      // esa columna a la entidad). Ahora se registra en consola Y se
+      // reenvía el mensaje real del driver de la base de datos, para que
+      // el error que ve el frontend ("Error al solicitar corrección: ...")
+      // diga exactamente qué falló.
+      console.error('[InformeService.update] Error al actualizar informe', id, error);
+      throw new InternalServerErrorException(
+        `No se pudo actualizar el informe: ${error.message}`,
+      );
+    }
+
     return this.findOne(id);
   }
 
