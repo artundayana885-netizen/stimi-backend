@@ -63,15 +63,10 @@ export class Informe {
   @Column('simple-json', { nullable: true })
   marcas: any[];
 
-  // Ruta en disco de la imagen de evidencia que el coordinador adjunta al
-  // aprobar/corregir un informe (ej. un pantallazo). Mismo patrón que
-  // archivoPath, pero en un archivo aparte porque es opcional y llega en
-  // una petición distinta (imagen-observacion), no al crear el informe.
-  @Column('varchar', { length: 500, nullable: true })
-  imagenObservacionPath: string;
-
-  // Mime type de la imagen de observación, para servirla con el
-  // Content-Type correcto al descargarla.
-  @Column('varchar', { length: 150, nullable: true })
-  imagenObservacionMimeType: string;
+  // Imágenes de evidencia (pantallazos) que el coordinador adjunta al
+  // aprobar/corregir un informe. Se permite hasta 5 (límite validado tanto
+  // en el frontend como en el controller). Se guardan como JSON, mismo
+  // patrón que `marcas`: [{ path, mimeType, originalName }, ...].
+  @Column('simple-json', { nullable: true })
+  imagenesObservacion: { path: string; mimeType: string; originalName: string }[];
 }

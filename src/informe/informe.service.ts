@@ -100,19 +100,25 @@ export class InformeService {
     return this.findOne(id);
   }
 
-  // Guarda la ruta y mimetype de la imagen de evidencia que el coordinador
-  // adjunta al aprobar/corregir un informe. Mismo patrón que `create()` usa
-  // para archivoPath/archivoMimeType, pero en una petición aparte porque
-  // la imagen es opcional y llega después de que el informe ya existe.
-  async guardarImagenObservacion(
+  // Agrega imágenes de evidencia al informe (hasta 5 en total, contando
+  // las que ya tuviera). Mismo patrón que `create()` usa para
+  // archivoPath/archivoMimeType, pero acumulando en un arreglo en vez de
+  // sobreescribir un solo valor.
+  async agregarImagenesObservacion(
     id: number,
-    imagen: Express.Multer.File,
+    imagenes: Express.Multer.File[],
   ): Promise<Informe> {
-    await this.findOne(id); // 404 si el informe no existe
-    await this.informeRepository.update(id, {
-      imagenObservacionPath: imagen.path,
-      imagenObservacionMimeType: imagen.mimetype,
-    });
+    const informe = await this.findOne(id); // 404 si el informe no existe
+    const existentes = informe.imagenesObservacion || [];
+    const nuevas = imagenes.map((img) => ({
+      path: img.path,
+      mimeType: img.mimetype,
+      originalName: img.originalname,
+    }));
+    // Límite duro de 5 también aquí, por si llegan varias peticiones
+    // sueltas en vez de una sola con todos los archivos.
+    const combinadas = [...existentes, ...nuevas].slice(0, 5);
+    await this.informeRepository.update(id, { imagenesObservacion: combinadas });
     return this.findOne(id);
   }
 

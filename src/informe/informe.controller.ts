@@ -10,8 +10,9 @@ import {
   NotFoundException,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync } from 'fs';
@@ -80,12 +81,13 @@ export class InformeController {
     return res.download(informe.archivoPath, nombreDescarga);
   }
 
-  // Recibe la imagen de evidencia (pantallazo) que el coordinador adjunta
-  // al aprobar/corregir un informe. Multipart aparte del PATCH normal,
-  // igual patrón que create() usa para el archivo del informe.
+  // Recibe hasta 5 imágenes de evidencia (pantallazos) que el coordinador
+  // adjunta al aprobar/corregir un informe. Si el informe ya tenía
+  // imágenes de una petición anterior, se acumulan hasta el límite de 5
+  // (ver InformeService.agregarImagenesObservacion).
   @Post(':id/imagen-observacion')
   @UseInterceptors(
-    FileInterceptor('imagen', {
+    FilesInterceptor('imagenes', 5, {
       storage: diskStorage({
         destination: OBSERVACION_IMG_UPLOAD_DIR,
         filename: (req, file, cb) => {
@@ -93,32 +95,38 @@ export class InformeController {
           cb(null, `${unique}${extname(file.originalname)}`);
         },
       }),
-      limits: { fileSize: 8 * 1024 * 1024 }, // 8MB, igual al límite anunciado en el frontend
+      limits: { fileSize: 8 * 1024 * 1024 }, // 8MB por imagen, igual al límite anunciado en el frontend
     }),
   )
-  async subirImagenObservacion(
+  async subirImagenesObservacion(
     @Param('id') id: string,
-    @UploadedFile() imagen?: Express.Multer.File,
+    @UploadedFiles() imagenes?: Express.Multer.File[],
   ) {
-    if (!imagen) {
+    if (!imagenes || imagenes.length === 0) {
       throw new NotFoundException('No se recibió ninguna imagen');
     }
-    return this.informeService.guardarImagenObservacion(+id, imagen);
+    return this.informeService.agregarImagenesObservacion(+id, imagenes);
   }
 
-  // Descarga la imagen de evidencia que el coordinador dejó en un informe.
-  // Igual patrón que descargarArchivo(): si no hay imagen guardada,
-  // responde 404 para que el frontend lo maneje sin romper la pantalla.
-  @Get(':id/imagen-observacion')
-  async descargarImagenObservacion(@Param('id') id: string, @Res() res: Response) {
+  // Descarga UNA imagen de evidencia por su posición en el arreglo
+  // (0, 1, 2...). El frontend pide cada una por separado con
+  // downloadObservationImage(id, index) para no cargar todas de una vez.
+  @Get(':id/imagen-observacion/:index')
+  async descargarImagenObservacion(
+    @Param('id') id: string,
+    @Param('index') index: string,
+    @Res() res: Response,
+  ) {
     const informe = await this.informeService.findOne(+id);
-    if (!informe.imagenObservacionPath || !existsSync(informe.imagenObservacionPath)) {
-      throw new NotFoundException('Este informe no tiene una imagen de observación adjunta');
+    const imagenes = informe.imagenesObservacion || [];
+    const imagen = imagenes[+index];
+    if (!imagen || !existsSync(imagen.path)) {
+      throw new NotFoundException('Esta imagen de observación no existe');
     }
-    if (informe.imagenObservacionMimeType) {
-      res.type(informe.imagenObservacionMimeType);
+    if (imagen.mimeType) {
+      res.type(imagen.mimeType);
     }
-    return res.sendFile(informe.imagenObservacionPath);
+    return res.sendFile(imagen.path);
   }
 
   @Get(':id')
