@@ -100,6 +100,22 @@ export class InformeService {
     return this.findOne(id);
   }
 
+  // Guarda la ruta y mimetype de la imagen de evidencia que el coordinador
+  // adjunta al aprobar/corregir un informe. Mismo patrón que `create()` usa
+  // para archivoPath/archivoMimeType, pero en una petición aparte porque
+  // la imagen es opcional y llega después de que el informe ya existe.
+  async guardarImagenObservacion(
+    id: number,
+    imagen: Express.Multer.File,
+  ): Promise<Informe> {
+    await this.findOne(id); // 404 si el informe no existe
+    await this.informeRepository.update(id, {
+      imagenObservacionPath: imagen.path,
+      imagenObservacionMimeType: imagen.mimetype,
+    });
+    return this.findOne(id);
+  }
+
   async remove(id: number): Promise<{ message: string }> {
     await this.findOne(id);
     await this.informeRepository.delete(id);

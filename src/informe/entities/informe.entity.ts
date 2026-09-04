@@ -62,4 +62,16 @@ export class Informe {
   // (funciona igual en sqlite y en postgres, sin tocar el tipo de columna).
   @Column('simple-json', { nullable: true })
   marcas: any[];
+
+  // Ruta en disco de la imagen de evidencia que el coordinador adjunta al
+  // aprobar/corregir un informe (ej. un pantallazo). Mismo patrón que
+  // archivoPath, pero en un archivo aparte porque es opcional y llega en
+  // una petición distinta (imagen-observacion), no al crear el informe.
+  @Column('varchar', { length: 500, nullable: true })
+  imagenObservacionPath: string;
+
+  // Mime type de la imagen de observación, para servirla con el
+  // Content-Type correcto al descargarla.
+  @Column('varchar', { length: 150, nullable: true })
+  imagenObservacionMimeType: string;
 }

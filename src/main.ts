@@ -8,6 +8,9 @@ async function bootstrap() {
   // La carpeta donde Multer guarda los informes subidos debe existir de
   // antemano; diskStorage no la crea sola.
   mkdirSync(join(process.cwd(), 'uploads', 'informes'), { recursive: true });
+  // Igual que arriba, pero para las imágenes de evidencia (pantallazos)
+  // que el coordinador adjunta al aprobar/corregir un informe.
+  mkdirSync(join(process.cwd(), 'uploads', 'observaciones'), { recursive: true });
 
   const app = await NestFactory.create(AppModule);
 
